@@ -1,6 +1,7 @@
 TARGET = server
+CLIENT = client
 CC = gcc
-CFLAGS = -g -std=c99 -Wall
+CFLAGS = -g -std=c99 -Wall -pthread
 
 OBJ = $(TARGET).o
 
@@ -16,6 +17,12 @@ $(TARGET): $(OBJ)
 	$(CC) $(CFLAGS) $^ -o $@
 
 $(TARGET).o: $(TARGET).c
+	$(CC) -c $(CFLAGS) $<
+
+$(CLIENT): $(CLIENT).o
+	$(CC) $(CFLAGS) $^ -o $@
+
+$(CLIENT).o: $(CLIENT).c
 	$(CC) -c $(CFLAGS) $<
 
 clean:

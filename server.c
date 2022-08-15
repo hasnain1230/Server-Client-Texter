@@ -8,10 +8,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
-#include <sys/types.h>
 #include <netdb.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <signal.h>
 
 // https://man7.org/linux/man-pages/man3/getaddrinfo.3.html
 
@@ -24,23 +24,29 @@ struct connection {
 int server(char *port);
 void *listener(void *args);
 
+void *handler(pthread_t tid, struct connection *con) {
+    free(con);
+    pthread_exit(tid);
+}
+
 int main() {
-   server("587106");
+    char *port = "587106";
+    server(port); // This port can really be anything > 1024. Ports < 1024 are reserved for major network related applications running on your system. Must be root to bind and listen on ports less than this. Don't do this, that's dangerous unless you know what
+                            // you are doing.
 }
 /*
  * getaddrinfo gives socket based on host name and port
  * getnameinfo gives host and port based on socket
  */
 int server(char *port) { // Port is required to be a string for some dumb reason (no, it actually makes sense because some ports can be really long)
-    struct addrinfo hint, *info_list;
-    struct addrinfo *head;
+    int socket_fd;
+    struct addrinfo hint, *info_list, *head;
     struct connection *con;
     pthread_t tid;
-    int socket_fd;
 
     memset(&hint, 0, sizeof(struct addrinfo));
 
-    hint.ai_family = AF_UNSPEC;
+    hint.ai_family = AF_UNSPEC; // Can be IPV6 or IPV4. There may be problems with this, but in general it's fine
     hint.ai_socktype = SOCK_STREAM; // TCP vs UDP <---- We are using TCP here. There are also communication protocols
     hint.ai_flags = AI_PASSIVE; // We are listening for a connection here.
 
@@ -48,7 +54,7 @@ int server(char *port) { // Port is required to be a string for some dumb reason
                             &info_list); // Since this is the server, we do not need to give it a name since it's on local host
     // info_list returns information in a linked list about the needed to connect to the node+service.
     if (error != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(error));
+        fprintf(stderr, "getaddrinfo() error: %s\n", gai_strerror(error));
         return -1;
     }
 
@@ -59,7 +65,7 @@ int server(char *port) { // Port is required to be a string for some dumb reason
             continue;
         }
 
-        if ((bind(socket_fd, head->ai_addr, head->ai_addrlen)) == 0 && (listen(socket_fd, 2) == 0)) {
+        if ((bind(socket_fd, head->ai_addr, head->ai_addrlen) == 0) && (listen(socket_fd, 8) == 0)) {
             break;
         }
 
@@ -75,20 +81,19 @@ int server(char *port) { // Port is required to be a string for some dumb reason
     freeaddrinfo(info_list); // Every library in C should have something like this built in
     puts("Waiting for connection");
 
-    con = malloc(sizeof(struct connection));
-
     while (true) {
+        con = malloc(sizeof(struct connection));
+        con->addr_len = sizeof(struct sockaddr_storage);
         con->fd = accept(socket_fd, (struct sockaddr *) &con->addr, &con->addr_len);
 
         if (con->fd == -1) {
-            perror("accept");
+            perror("accept error");
             continue;
         }
 
-        // spin off a worker thread to handle the remote connection
-        error = pthread_create(&tid, NULL, listener, &con);
+        // Spin off a worker thread to handle the remote connection
+        error = pthread_create(&tid, NULL, listener, con);
 
-        // if we couldn't spin off the thread, clean up and wait for another connection
         if (error != 0) {
             fprintf(stderr, "Unable to create thread: %d\n", error);
             close(con->fd);
@@ -96,20 +101,19 @@ int server(char *port) { // Port is required to be a string for some dumb reason
             continue;
         }
 
-        // otherwise, detach the thread and wait for the next connection request
+        // Wait for next connection request
         pthread_detach(tid);
-    }
 
-    // never reach here
-    return 0;
+        // signal(SIGINT, handler(tid, con));
+    }
 }
 
 void *listener(void *args) {
-    int numberRead;
+    int bytesRead;
     char host[256], port[32], buffer[9]; // One more for null terminator
     struct connection *con = (struct connection *) args;
 
-    int error = getnameinfo((struct sockaddr *) &con->addr, con->addr_len, host, 256, port, 9, NI_NUMERICSERV);
+    int error = getnameinfo((struct sockaddr *) &con->addr, con->addr_len, host, 256, port, 8, NI_NUMERICSERV); // Give us an actual port number
 
     if (error != 0) {
         fprintf(stderr, "getnameinfo: %s", gai_strerror(error));
@@ -119,9 +123,9 @@ void *listener(void *args) {
 
     printf("[%s:%s] connection\n", host, port);
 
-    while ((numberRead = read(con->fd, buffer, 8)) > 0) {
-        buffer[numberRead] = '\0';
-        printf("[%s:%s] read %d bytes |%s|\n", host, port, numberRead, buffer);
+    while ((bytesRead = read(con->fd, buffer, 8)) > 0) { // Read blocks by default if nothing is available
+        buffer[bytesRead] = '\0';
+        printf("[%s:%s] read %d bytes |%s|\n", host, port, bytesRead, buffer);
     }
 
     printf("[%s:%s] got EOF\n", host, port);
