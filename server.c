@@ -15,6 +15,13 @@
 
 // https://man7.org/linux/man-pages/man3/getaddrinfo.3.html
 
+// Server:
+// Get addrinfo for information to create a socket FD
+// Create listening socket
+// Bind to port
+// Listen and accept connections
+// Read and write into file descriptor
+
 struct connection {
     struct sockaddr_storage addr;
     socklen_t addr_len;
@@ -24,14 +31,9 @@ struct connection {
 int server(char *port);
 void *listener(void *args);
 
-void *handler(pthread_t tid, struct connection *con) {
-    free(con);
-    pthread_exit(tid);
-}
-
-int main() {
-    char *port = "587106";
-    server(port); // This port can really be anything > 1024. Ports < 1024 are reserved for major network related applications running on your system. Must be root to bind and listen on ports less than this. Don't do this, that's dangerous unless you know what
+int main(int argc, char *argv[]) {
+    // Port 587106
+    server(argv[1]); // This port can really be anything > 1024. Ports < 1024 are reserved for major network related applications running on your system. Must be root to bind and listen on ports less than this. Don't do this, that's dangerous unless you know what
                             // you are doing.
 }
 /*
@@ -103,8 +105,6 @@ int server(char *port) { // Port is required to be a string for some dumb reason
 
         // Wait for next connection request
         pthread_detach(tid);
-
-        // signal(SIGINT, handler(tid, con));
     }
 }
 

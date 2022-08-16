@@ -11,6 +11,11 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+
+// Client: Create socket for host you want to connect to.
+// Send data by writing into socket FD
+
+
 void client(char *argv[]) {
     struct addrinfo hints, *res, *res_list;
     int socket_fd;
@@ -48,7 +53,7 @@ void client(char *argv[]) {
 
     freeaddrinfo(res_list);
 
-    write(socket_fd, argv[3], strlen(argv[3]));
+    write(socket_fd, argv[3], strlen(argv[3])); // This is slightly unsafe, but fine for demonstration purposes
 
     close(socket_fd);
 }
