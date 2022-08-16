@@ -50,3 +50,13 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# IDE and Unix Hidden Files
+.idea/
+.DS_Store
+
+# Executables and Object Files
+client
+server
+server.o
+client.o

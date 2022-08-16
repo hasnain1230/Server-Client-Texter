@@ -27,3 +27,4 @@ $(CLIENT).o: $(CLIENT).c
 
 clean:
 	rm -rfv $(TARGET) *.o *.a *.dylib *.dSYM
+	rm -rfv $(CLIENT)
